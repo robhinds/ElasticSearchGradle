@@ -8,7 +8,7 @@ import de.gesellix.gradle.docker.tasks.*
 class ElasticSearchTestPlugin implements Plugin<Project> {
 
     void apply(Project project) {
-        project.extensions.create('generator', ElasticSearchTestPluginExtension)
+        project.extensions.create('elasticsearchdocker', ElasticSearchTestPluginExtension)
         project.plugins.apply('de.gesellix.docker')
         stopElasticSearchTask(project)
         removeElasticSearchContainerTask(project)
@@ -16,7 +16,7 @@ class ElasticSearchTestPlugin implements Plugin<Project> {
         elasticSearchConnectionDetailsTask(project)
         waitForElasticSearchAvailableTask(project)
 
-        String testPhase = project.extensions.generator.testPhaseTask
+        String testPhase = project.extensions.elasticsearchdocker.testPhaseTask
         project.tasks[testPhase].dependsOn project.tasks.waitForElasticSearchAvailable
         project.tasks.removeElasticSearchContainer.mustRunAfter project.tasks[testPhase]
     }
@@ -24,9 +24,8 @@ class ElasticSearchTestPlugin implements Plugin<Project> {
     protected DockerRunTask startElasticSearchTask(Project project) {
         project.tasks.create("startElasticSearch", DockerRunTask) {
             project.afterEvaluate {
-                imageName = project.extensions.generator.dockerImageName
-                containerName = project.extensions.generator.dockerContainerName
-                dockerHost = project.extensions.generator.localDockerHost
+                imageName = project.extensions.elasticsearchdocker.dockerImageName
+                containerName = project.extensions.elasticsearchdocker.dockerContainerName
                 containerConfiguration = [
                         "HostConfig": [
                                 "PublishAllPorts": true
@@ -40,8 +39,7 @@ class ElasticSearchTestPlugin implements Plugin<Project> {
     protected DockerStopTask stopElasticSearchTask(Project project) {
         project.tasks.create("stopElasticSearch", DockerStopTask) {
             project.afterEvaluate {
-                containerId = project.extensions.generator.dockerContainerName
-                dockerHost = project.extensions.generator.localDockerHost
+                containerId = project.extensions.elasticsearchdocker.dockerContainerName
             }
         }
     }
@@ -49,8 +47,7 @@ class ElasticSearchTestPlugin implements Plugin<Project> {
     protected DockerRmTask removeElasticSearchContainerTask(Project project) {
         project.tasks.create("removeElasticSearchContainer", DockerRmTask) {
             project.afterEvaluate {
-                containerId = project.extensions.generator.dockerContainerName
-                dockerHost = project.extensions.generator.localDockerHost
+                containerId = project.extensions.elasticsearchdocker.dockerContainerName
             }
             dependsOn project.tasks.stopElasticSearch
         }
@@ -59,15 +56,14 @@ class ElasticSearchTestPlugin implements Plugin<Project> {
     protected DockerInspectContainerTask elasticSearchConnectionDetailsTask(Project p) {
         p.tasks.create("elasticSearchConnectionDetails", DockerInspectContainerTask) {
             p.afterEvaluate {
-                containerId = p.extensions.generator.dockerContainerName
-                dockerHost = project.extensions.generator.localDockerHost
+                containerId = p.extensions.elasticsearchdocker.dockerContainerName
             }
             dependsOn p.tasks.startElasticSearch
 
             doLast {
                 def port = containerInfo.content.NetworkSettings.Ports["9200/tcp"][0].HostPort
-                project.extensions.generator.port = port
-                test {
+                project.extensions.elasticsearchdocker.port = port
+                project.tasks.test {
                     systemProperties['es.port'] = port
                 }
             }
@@ -78,7 +74,7 @@ class ElasticSearchTestPlugin implements Plugin<Project> {
         project.tasks.create("waitForElasticSearchAvailable", Exec) {
             project.afterEvaluate {
                 doFirst {
-                    commandLine 'bash', '-c', "while ! curl -s localhost:${project.extensions.generator.port}; do sleep 1; done > /dev/null"
+                    commandLine 'bash', '-c', "while ! curl -s localhost:${project.extensions.elasticsearchdocker.port}; do sleep 1; done > /dev/null"
                 }
             }
             dependsOn project.tasks.elasticSearchConnectionDetails
