@@ -16,9 +16,11 @@ class ElasticSearchTestPlugin implements Plugin<Project> {
         elasticSearchConnectionDetailsTask(project)
         waitForElasticSearchAvailableTask(project)
 
-        String testPhase = project.extensions.elasticsearchdocker.testPhaseTask
-        project.tasks[testPhase].dependsOn project.tasks.waitForElasticSearchAvailable
-        project.tasks.removeElasticSearchContainer.mustRunAfter project.tasks[testPhase]
+        project.afterEvaluate {
+            String testPhase = project.extensions.elasticsearchdocker.testPhaseTask
+            project.tasks[testPhase].dependsOn project.tasks.waitForElasticSearchAvailable
+            project.tasks.removeElasticSearchContainer.mustRunAfter project.tasks[testPhase]
+        }
     }
 
     protected DockerRunTask startElasticSearchTask(Project project) {
@@ -63,9 +65,6 @@ class ElasticSearchTestPlugin implements Plugin<Project> {
             doLast {
                 def port = containerInfo.content.NetworkSettings.Ports["9200/tcp"][0].HostPort
                 project.extensions.elasticsearchdocker.port = port
-                project.tasks.test {
-                    systemProperties['es.port'] = port
-                }
             }
         }
     }
@@ -74,6 +73,10 @@ class ElasticSearchTestPlugin implements Plugin<Project> {
         project.tasks.create("waitForElasticSearchAvailable", Exec) {
             project.afterEvaluate {
                 doFirst {
+                    String testPhase = project.extensions.elasticsearchdocker.testPhaseTask
+                    project.tasks."$testPhase" {
+                        systemProperties['es.port'] = project.extensions.elasticsearchdocker.port
+                    }
                     commandLine 'bash', '-c', "while ! curl -s localhost:${project.extensions.elasticsearchdocker.port}; do sleep 1; done > /dev/null"
                 }
             }
